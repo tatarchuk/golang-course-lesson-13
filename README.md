@@ -7,10 +7,13 @@ gRPC-сервіс обліку музичних альбомів на Go: кон
 Це новий репозиторій без коду попередніх тем: REST API, вебінтерфейс, PostgreSQL і serverless-частина
 лишилися в репозиторіях Тем 8–12 (останній — <https://github.com/tatarchuk/golang-course-lesson-12>).
 
+Умова Теми 13, адаптована під варіант `albums`: [albums_lesson13_homework.md](albums_lesson13_homework.md).
+
 ## Структура проєкту
 
 | Шлях | Призначення |
 |---|---|
+| `albums_lesson13_homework.md` | умова домашнього завдання (UA + EN): оцінювання, кроки, чеклісти зі слайдів 44 і 46 |
 | `go.mod` | модуль `homework`, Go 1.27 |
 | `Makefile` | цілі збірки й перевірок (`make` показує список) |
 | `.github/workflows/lesson13-check.yml` | CI: статичні перевірки (обов'язкові файли, відсутність токенів у документації) |

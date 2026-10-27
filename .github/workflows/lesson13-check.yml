@@ -58,7 +58,7 @@ jobs:
           header "Lesson 13: static checks"
 
           required=(
-            README.md LICENSE Makefile go.mod .gitignore .gitattributes
+            README.md LICENSE Makefile go.mod .gitignore .gitattributes albums_lesson13_homework.md
           )
           missing=""
           for f in "${required[@]}"; do [ -f "$f" ] || missing="$missing $f"; done
