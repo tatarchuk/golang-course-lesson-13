@@ -1,0 +1,44 @@
+# Lesson 13, Part 1.10 (b): the demo's benchmark (README section 5; slide 47), 2026-10-27.
+# Working directory: libratrack-grpc-demo/. Machine: Apple Silicon (arm64), macOS 27.0.1, Go 1.27.1 (docs/environment.txt).
+# The README's own numbers come from Linux, 1 vCPU, Go 1.22, -benchtime=3s; the comparison is at the end of this file.
+
+$ go test ./bench -run TestPayloadSize -v
+=== RUN   TestPayloadSize
+    benchmark_test.go:242: Protobuf:  28 байт  (у мережі — номери полів, без назв)
+    benchmark_test.go:243: JSON:      85 байт  (назви полів повторюються в кожному повідомленні)
+    benchmark_test.go:244: JSON більший у 3.0 раза
+--- PASS: TestPayloadSize (0.00s)
+PASS
+ok  	libratrack/bench	0.432s
+(exit 0)
+
+$ go test ./bench -run '^$' -bench=. -benchmem -benchtime=2s
+goos: darwin
+goarch: arm64
+pkg: libratrack/bench
+cpu: Apple M2 Pro
+BenchmarkGetCopy_gRPC-10              	   37584	     60653 ns/op	    9736 B/op	     188 allocs/op
+BenchmarkGetCopy_REST-10              	   48306	     49537 ns/op	    6206 B/op	      71 allocs/op
+BenchmarkGetCopy_RESTviaGateway-10    	   18782	    125921 ns/op	   22018 B/op	     338 allocs/op
+BenchmarkGetCopyParallel_gRPC-10      	  149017	     16145 ns/op	    9417 B/op	     170 allocs/op
+BenchmarkGetCopyParallel_REST-10      	  154172	     15366 ns/op	    6241 B/op	      71 allocs/op
+BenchmarkSerialize_Protobuf-10        	10940475	       215.6 ns/op	     152 B/op	       5 allocs/op
+BenchmarkSerialize_JSON-10            	 3772442	       637.7 ns/op	     224 B/op	       3 allocs/op
+PASS
+ok  	libratrack/bench	20.483s
+(exit 0)
+
+--- comparison with the README numbers (section 5 of the demo README) ---
+# Measured value                      README (Linux, 1 vCPU, Go 1.22, 3 s)   this Mac (M2 Pro, Go 1.27.1, 2 s)
+# Copy on the wire                    Protobuf 28 B, JSON 85 B (~3x)         Protobuf 28 B, JSON 85 B (3.0x): identical, a property of the format
+# Serialize + deserialize             Protobuf ~410 ns, JSON ~1850 ns (4.5x) Protobuf 215.6 ns, JSON 637.7 ns (3.0x)
+# One call, native gRPC               ~33 us                                 60.7 us (188 allocs/op)
+# One call, hand-written REST/JSON    ~24 us                                 49.5 us (71 allocs/op)
+# One call, REST through the gateway  ~80 us                                 125.9 us (338 allocs/op)
+# Parallel calls (not in the README)  -                                      gRPC 16.1 us/op, REST 15.4 us/op (10 cores)
+#
+# What we saw, as the README asks to report: the ordering is the same as in the README. Protobuf is 3x smaller and
+# about 3x faster to serialize; for one tiny request on loopback the hand-written REST path is still the fastest
+# and the gateway path the slowest (two protocol hops), i.e. the transport overhead dominates (slide 10). The absolute
+# per-call numbers are higher on this macOS machine than in the README's Linux run (different network stack and
+# scheduler, 2 s runs); the parallel benchmarks show both protocols at about 16 us per call on 10 cores.

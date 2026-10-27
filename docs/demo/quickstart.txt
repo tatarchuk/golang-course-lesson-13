@@ -1,0 +1,40 @@
+# Lesson 13, Part 1.3: quick start of the course demo (its README, section 3) on the Mac, 2026-10-27.
+# Working directory: libratrack-grpc-demo/. The one-time 'go mod tidy' and 'go test ./... -race' are in go-test.txt.
+# Terminals 1 and 3 (server, gateway) run in the background of the session with their logs captured below;
+# Ctrl+C is SIGINT to the process group, as a terminal sends it. curl gets -sS (no progress meter outside a terminal).
+
+--- terminal 1: server ---
+$ go run ./cmd/inventory-server        # keeps running; its output is appended below
+
+--- terminal 2: client ---
+$ go run ./cmd/inventory-client get copy-1
+{
+  "id":  "copy-1",
+  "book_id":  "book-1",
+  "inventory_number":  "INV-0001",
+  "status":  "AVAILABLE"
+}
+(exit 0)
+
+--- terminal 3: REST gateway (needs the server of terminal 1) ---
+$ go run ./cmd/gateway        # keeps running; its output is appended below
+
+$ curl -sS localhost:8080/v1/copies/copy-1
+{"id":"copy-1","book_id":"book-1","inventory_number":"INV-0001","status":"AVAILABLE"}
+(exit 0)
+
+--- Ctrl+C in terminal 3, then in terminal 1 ---
+
+--- terminal 1: server log ---
+time=2026-10-27T17:51:00.706+02:00 level=INFO msg="inventory server started" addr=[::]:50051 mtls=false auth=false simulate=false
+time=2026-10-27T17:51:00.706+02:00 level=WARN msg="TLS вимкнено — відкритий текст лише для локальної розробки (слайд 33)"
+time=2026-10-27T17:51:01.191+02:00 level=INFO msg=rpc kind=unary method=/inventory.v1.InventoryService/GetCopy code=OK duration=7µs remote=[::1]:51021
+time=2026-10-27T17:51:01.701+02:00 level=INFO msg=rpc kind=unary method=/inventory.v1.InventoryService/GetCopy code=OK duration=56µs remote=[::1]:51025
+time=2026-10-27T17:51:01.708+02:00 level=INFO msg="shutting down..."
+time=2026-10-27T17:51:01.708+02:00 level=INFO msg=bye
+
+--- terminal 3: gateway log ---
+time=2026-10-27T17:51:01.596+02:00 level=INFO msg="gateway started" http=:8080 upstream_grpc=localhost:50051 mtls=false
+time=2026-10-27T17:51:01.662+02:00 level=INFO msg="rest request" method=GET path=/v1/copies/copy-1
+time=2026-10-27T17:51:01.705+02:00 level=INFO msg=bye
+

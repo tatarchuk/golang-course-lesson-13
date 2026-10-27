@@ -1,0 +1,118 @@
+# Lesson 13, Part 1.7: REST through grpc-gateway (demo README 4.5; slides 28, 43, 46), 2026-10-27.
+# Working directory: libratrack-grpc-demo/. Server and gateway started fresh. curl gets -sS (no progress meter
+# outside a terminal), everything else as written in the README.
+
+--- terminal 1: server ---
+$ go run ./cmd/inventory-server        # keeps running; its output is appended below
+
+--- terminal 3: gateway ---
+$ go run ./cmd/gateway        # keeps running; its output is appended below
+
+--- terminal 2: the same GetCopy natively (grpcurl, as in 1.4) and through the gateway: the same data as JSON over HTTP (slide 46) ---
+$ grpcurl -plaintext -d '{"id":"copy-1"}' localhost:50051 inventory.v1.InventoryService/GetCopy
+{
+  "id": "copy-1",
+  "bookId": "book-1",
+  "inventoryNumber": "INV-0001",
+  "status": "AVAILABLE"
+}
+(exit 0)
+
+$ curl -sS -i localhost:8080/v1/copies/copy-1
+HTTP/1.1 200 OK
+Content-Length: 85
+Content-Type: application/json
+Grpc-Metadata-Content-Type: application/grpc
+Date: Tue, 27 Oct 2026 15:51:15 GMT
+
+{"id":"copy-1","book_id":"book-1","inventory_number":"INV-0001","status":"AVAILABLE"}
+(exit 0)
+
+--- terminal 2: the README 4.5 rows ---
+$ curl -sS -i localhost:8080/v1/copies/nope
+HTTP/1.1 404 Not Found
+Content-Type: application/json
+Date: Tue, 27 Oct 2026 15:51:15 GMT
+Content-Length: 55
+
+{"code":5,"message":"copy nope not found","details":[]}
+(exit 0)
+
+$ curl -sS -X POST  localhost:8080/v1/copies -d '{"book_id":"book-8","inventory_number":"INV-8001"}'
+{"id":"copy-4","book_id":"book-8","inventory_number":"INV-8001","status":"AVAILABLE"}
+(exit 0)
+
+$ curl -sS -i -X POST localhost:8080/v1/copies -d '{"book_id":"book-8","inventory_number":"INV-8001"}'
+HTTP/1.1 409 Conflict
+Content-Type: application/json
+Date: Tue, 27 Oct 2026 15:51:15 GMT
+Content-Length: 80
+
+{"code":6,"message":"inventory number INV-8001 already registered","details":[]}
+(exit 0)
+
+$ curl -sS -X PATCH localhost:8080/v1/copies/copy-1/status -d '{"status":"LOST"}'
+{"id":"copy-1","book_id":"book-1","inventory_number":"INV-0001","status":"LOST"}
+(exit 0)
+
+$ curl -sS -i -X PATCH localhost:8080/v1/copies/copy-1/status -d '{"status":"STATUS_UNSPECIFIED"}'
+HTTP/1.1 400 Bad Request
+Content-Type: application/json
+Date: Tue, 27 Oct 2026 15:51:15 GMT
+Content-Length: 103
+
+{"code":3,"message":"status must be AVAILABLE, BORROWED or LOST (got STATUS_UNSPECIFIED)","details":[]}
+(exit 0)
+
+--- terminal 2: streaming through REST, a stream of JSON lines (max_updates=3: snapshot + 2 updates) ---
+$ curl -sS -N "localhost:8080/v1/copies/copy-1/watch?max_updates=3"        # keeps running; its output is appended below
+
+--- terminal 3 (another window): two status changes ---
+$ curl -sS -X PATCH localhost:8080/v1/copies/copy-1/status -d '{"status":"BORROWED"}'
+{"id":"copy-1","book_id":"book-1","inventory_number":"INV-0001","status":"BORROWED"}
+(exit 0)
+
+$ curl -sS -X PATCH localhost:8080/v1/copies/copy-1/status -d '{"status":"AVAILABLE"}'
+{"id":"copy-1","book_id":"book-1","inventory_number":"INV-0001","status":"AVAILABLE"}
+(exit 0)
+
+--- terminal 2: the JSON lines received by curl -N ---
+{"result":{"copy_id":"copy-1","status":"LOST","changed_at":"2026-10-27T15:51:15.783524Z"}}
+{"result":{"copy_id":"copy-1","status":"BORROWED","changed_at":"2026-10-27T15:51:15.896495Z"}}
+{"result":{"copy_id":"copy-1","status":"AVAILABLE","changed_at":"2026-10-27T15:51:15.907215Z"}}
+(exit 0)
+
+--- Ctrl+C in terminal 3, then in terminal 1 ---
+
+--- terminal 1: server log ---
+time=2026-10-27T17:51:15.267+02:00 level=INFO msg="inventory server started" addr=[::]:50051 mtls=false auth=false simulate=false
+time=2026-10-27T17:51:15.267+02:00 level=WARN msg="TLS вимкнено — відкритий текст лише для локальної розробки (слайд 33)"
+time=2026-10-27T17:51:15.667+02:00 level=INFO msg=rpc kind=unary method=/inventory.v1.InventoryService/GetCopy code=OK duration=4µs remote=[::1]:51092
+time=2026-10-27T17:51:15.667+02:00 level=INFO msg=rpc kind=stream method=/grpc.reflection.v1.ServerReflection/ServerReflectionInfo code=OK duration=2.102ms remote=[::1]:51092
+time=2026-10-27T17:51:15.714+02:00 level=INFO msg=rpc kind=unary method=/inventory.v1.InventoryService/GetCopy code=OK duration=18µs remote=[::1]:51094
+time=2026-10-27T17:51:15.726+02:00 level=INFO msg=rpc kind=unary method=/inventory.v1.InventoryService/GetCopy code=NotFound duration=17µs remote=[::1]:51094
+time=2026-10-27T17:51:15.738+02:00 level=INFO msg=rpc kind=unary method=/inventory.v1.InventoryService/RegisterCopy code=OK duration=5µs remote=[::1]:51094
+time=2026-10-27T17:51:15.749+02:00 level=INFO msg=rpc kind=unary method=/inventory.v1.InventoryService/RegisterCopy code=AlreadyExists duration=16µs remote=[::1]:51094
+time=2026-10-27T17:51:15.759+02:00 level=INFO msg=rpc kind=unary method=/inventory.v1.InventoryService/UpdateCopyStatus code=OK duration=3µs remote=[::1]:51094
+time=2026-10-27T17:51:15.770+02:00 level=INFO msg=rpc kind=unary method=/inventory.v1.InventoryService/UpdateCopyStatus code=InvalidArgument duration=17µs remote=[::1]:51094
+time=2026-10-27T17:51:15.783+02:00 level=INFO msg="watch started" copy_id=copy-1 max_updates=3
+time=2026-10-27T17:51:15.896+02:00 level=INFO msg=rpc kind=unary method=/inventory.v1.InventoryService/UpdateCopyStatus code=OK duration=25µs remote=[::1]:51094
+time=2026-10-27T17:51:15.907+02:00 level=INFO msg=rpc kind=unary method=/inventory.v1.InventoryService/UpdateCopyStatus code=OK duration=11µs remote=[::1]:51094
+time=2026-10-27T17:51:15.907+02:00 level=INFO msg="watch finished" copy_id=copy-1 reason="max_updates reached" sent=3
+time=2026-10-27T17:51:15.907+02:00 level=INFO msg=rpc kind=stream method=/inventory.v1.InventoryService/WatchCopyStatus code=OK duration=123.863ms remote=[::1]:51094
+time=2026-10-27T17:51:15.918+02:00 level=INFO msg="shutting down..."
+time=2026-10-27T17:51:15.918+02:00 level=INFO msg=bye
+
+--- terminal 3: gateway log ---
+time=2026-10-27T17:51:15.502+02:00 level=INFO msg="gateway started" http=:8080 upstream_grpc=localhost:50051 mtls=false
+time=2026-10-27T17:51:15.683+02:00 level=INFO msg="rest request" method=GET path=/v1/copies/copy-1
+time=2026-10-27T17:51:15.726+02:00 level=INFO msg="rest request" method=GET path=/v1/copies/nope
+time=2026-10-27T17:51:15.737+02:00 level=INFO msg="rest request" method=POST path=/v1/copies
+time=2026-10-27T17:51:15.749+02:00 level=INFO msg="rest request" method=POST path=/v1/copies
+time=2026-10-27T17:51:15.759+02:00 level=INFO msg="rest request" method=PATCH path=/v1/copies/copy-1/status
+time=2026-10-27T17:51:15.770+02:00 level=INFO msg="rest request" method=PATCH path=/v1/copies/copy-1/status
+time=2026-10-27T17:51:15.783+02:00 level=INFO msg="rest request" method=GET path="/v1/copies/copy-1/watch?max_updates=3"
+time=2026-10-27T17:51:15.896+02:00 level=INFO msg="rest request" method=PATCH path=/v1/copies/copy-1/status
+time=2026-10-27T17:51:15.907+02:00 level=INFO msg="rest request" method=PATCH path=/v1/copies/copy-1/status
+time=2026-10-27T17:51:15.915+02:00 level=INFO msg=bye
+

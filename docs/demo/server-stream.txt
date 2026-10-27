@@ -1,0 +1,108 @@
+# Lesson 13, Part 1.5: server streaming, live updates (demo README 4.2; slides 20, 42, 46), 2026-10-27.
+# Working directory: libratrack-grpc-demo/. Terminal 2 (watch) runs in the background of the session; its output
+# is appended after the terminal 3 commands that produced it. Ctrl+C is SIGINT to the process group.
+
+--- terminal 1: server ---
+$ go run ./cmd/inventory-server        # keeps running; its output is appended below
+
+--- terminal 2: watch with -max 3 (the server closes the stream after 3 messages) ---
+$ go run ./cmd/inventory-client -max 3 watch copy-1        # keeps running; its output is appended below
+
+--- terminal 3: change the status twice ---
+$ go run ./cmd/inventory-client set-status copy-1 BORROWED
+{
+  "id":  "copy-1",
+  "book_id":  "book-1",
+  "inventory_number":  "INV-0001",
+  "status":  "BORROWED"
+}
+(exit 0)
+
+$ go run ./cmd/inventory-client set-status copy-1 AVAILABLE
+{
+  "id":  "copy-1",
+  "book_id":  "book-1",
+  "inventory_number":  "INV-0001",
+  "status":  "AVAILABLE"
+}
+(exit 0)
+
+--- terminal 2: output of the watch (snapshot + 2 updates, then io.EOF) ---
+слідкуємо за copy-1 (Ctrl+C — вийти)...
+17:51:03.389  copy-1 -> AVAILABLE
+17:51:03.565  copy-1 -> BORROWED
+17:51:03.739  copy-1 -> AVAILABLE
+потік завершено сервером (io.EOF) — все гаразд
+(exit 0)
+
+--- terminal 2: watch without -max, then Ctrl+C (slide 46: the handler sees the cancellation, no leak) ---
+$ go run ./cmd/inventory-client watch copy-1        # keeps running; its output is appended below
+
+--- terminal 2: output of the watch after Ctrl+C ---
+слідкуємо за copy-1 (Ctrl+C — вийти)...
+17:51:03.903  copy-1 -> AVAILABLE
+потік скасовано клієнтом (Ctrl+C)
+(exit 1)
+
+--- Ctrl+C in terminal 1 ---
+
+--- terminal 1: server log (see the two 'watch finished' lines and their reasons) ---
+time=2026-10-27T17:51:03.145+02:00 level=INFO msg="inventory server started" addr=[::]:50051 mtls=false auth=false simulate=false
+time=2026-10-27T17:51:03.145+02:00 level=WARN msg="TLS вимкнено — відкритий текст лише для локальної розробки (слайд 33)"
+time=2026-10-27T17:51:03.389+02:00 level=INFO msg="watch started" copy_id=copy-1 max_updates=3
+time=2026-10-27T17:51:03.565+02:00 level=INFO msg=rpc kind=unary method=/inventory.v1.InventoryService/UpdateCopyStatus code=OK duration=9µs remote=[::1]:51059
+time=2026-10-27T17:51:03.739+02:00 level=INFO msg="watch finished" copy_id=copy-1 reason="max_updates reached" sent=3
+time=2026-10-27T17:51:03.739+02:00 level=INFO msg=rpc kind=stream method=/inventory.v1.InventoryService/WatchCopyStatus code=OK duration=350.474ms remote=[::1]:51056
+time=2026-10-27T17:51:03.739+02:00 level=INFO msg=rpc kind=unary method=/inventory.v1.InventoryService/UpdateCopyStatus code=OK duration=39µs remote=[::1]:51062
+time=2026-10-27T17:51:03.903+02:00 level=INFO msg="watch started" copy_id=copy-1 max_updates=0
+time=2026-10-27T17:51:04.987+02:00 level=INFO msg="watch finished" copy_id=copy-1 reason="client gone / cancelled" sent=1
+time=2026-10-27T17:51:04.987+02:00 level=INFO msg=rpc kind=stream method=/inventory.v1.InventoryService/WatchCopyStatus code=Canceled duration=1.084673s remote=[::1]:51065
+time=2026-10-27T17:51:04.999+02:00 level=INFO msg="shutting down..."
+time=2026-10-27T17:51:04.999+02:00 level=INFO msg=bye
+
+--- terminal 1: server with -simulate (the statuses change every 2 s without a second terminal) ---
+$ go run ./cmd/inventory-server -simulate        # keeps running; its output is appended below
+
+--- terminal 2: watch with -max 5 ---
+$ go run ./cmd/inventory-client -max 5 watch copy-1
+слідкуємо за copy-1 (Ctrl+C — вийти)...
+17:51:05.428  copy-1 -> AVAILABLE
+17:51:07.147  copy-1 -> BORROWED
+17:51:09.146  copy-1 -> AVAILABLE
+17:51:11.147  copy-1 -> BORROWED
+17:51:13.147  copy-1 -> AVAILABLE
+потік завершено сервером (io.EOF) — все гаразд
+(exit 0)
+
+--- Ctrl+C in terminal 1 ---
+
+--- terminal 1: server log (-simulate) ---
+time=2026-10-27T17:51:05.146+02:00 level=INFO msg="inventory server started" addr=[::]:50051 mtls=false auth=false simulate=true
+time=2026-10-27T17:51:05.146+02:00 level=WARN msg="TLS вимкнено — відкритий текст лише для локальної розробки (слайд 33)"
+time=2026-10-27T17:51:05.428+02:00 level=INFO msg="watch started" copy_id=copy-1 max_updates=5
+time=2026-10-27T17:51:13.147+02:00 level=INFO msg="watch finished" copy_id=copy-1 reason="max_updates reached" sent=5
+time=2026-10-27T17:51:13.147+02:00 level=INFO msg=rpc kind=stream method=/inventory.v1.InventoryService/WatchCopyStatus code=OK duration=7.718975s remote=[::1]:51070
+time=2026-10-27T17:51:13.159+02:00 level=INFO msg="shutting down..."
+time=2026-10-27T17:51:13.159+02:00 level=INFO msg=bye
+
+--- note on the exit status after Ctrl+C ---
+# The '(exit 1)' after 'потік скасовано клієнтом (Ctrl+C)' above is the status of the go command: 'go run' reports
+# the interrupt it received itself. The client program exits 0 after a cancelled stream, as the same run with the
+# built binary shows (bin/ is git-ignored):
+
+$ go run ./cmd/inventory-server        # keeps running; its output is appended below
+
+$ go build -o bin/inventory-client ./cmd/inventory-client
+(exit 0)
+
+$ bin/inventory-client watch copy-1        # keeps running; its output is appended below
+
+--- terminal 2: output of bin/inventory-client watch copy-1 after Ctrl+C ---
+слідкуємо за copy-1 (Ctrl+C — вийти)...
+17:56:34.777  copy-1 -> AVAILABLE
+потік скасовано клієнтом (Ctrl+C)
+(exit 0)
+
+--- terminal 1: the matching server line ---
+time=2026-10-27T17:56:35.825+02:00 level=INFO msg="watch finished" copy_id=copy-1 reason="client gone / cancelled" sent=1
+

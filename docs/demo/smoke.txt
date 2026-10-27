@@ -1,0 +1,20 @@
+# Lesson 13, Part 1.11: end-to-end smoke check of the demo (make smoke = bash scripts/smoke.sh; slide 44), 2026-10-27.
+# Working directory: libratrack-grpc-demo/. The script builds to bin/ (git-ignored), starts its own server and gateway,
+# runs the slide 44 scenarios over gRPC and REST and stops everything.
+
+$ make smoke
+bash scripts/smoke.sh
+gRPC:
+  OK   GetCopy повертає Copy
+  OK   GetCopy невідомий -> NotFound
+  OK   Register дубль -> AlreadyExists
+  OK   Bulk реєструє партію
+  OK   Sync підтверджує події
+  OK   Watch завершується io.EOF
+REST (gateway):
+  OK   GET /v1/copies/copy-1 -> 200
+  OK   GET невідомий -> 404
+  OK   POST дубль -> 409
+ВСЕ ГАРАЗД
+(exit 0)
+

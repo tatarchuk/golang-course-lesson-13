@@ -1,0 +1,134 @@
+# Lesson 13, Part 1.8: token authentication, JWT (demo README 4.6; slides 32-33), 2026-10-27.
+# Working directory: libratrack-grpc-demo/. The server is restarted with -auth. Tokens are printed masked
+# (session helper 'mask': first 10 characters only); no JWT is stored in this repository (CI token guard).
+# curl gets -sS (no progress meter outside a terminal), everything else as written in the README.
+
+--- terminal 1: server with token authentication ---
+$ go run ./cmd/inventory-server -auth        # keeps running; its output is appended below
+
+--- terminal 2: mint the demo tokens (HS256, default demo secret, 1 hour) ---
+$ export LIB=$(go run ./cmd/mint-token -sub anna -role librarian)
+(exit 0)
+
+$ export RDR=$(go run ./cmd/mint-token -sub oleh -role reader)
+(exit 0)
+
+$ mask LIB
+LIB=eyJhbGciOi...[masked: 148 characters, 3 dot-separated parts]
+(exit 0)
+
+$ mask RDR
+RDR=eyJhbGciOi...[masked: 144 characters, 3 dot-separated parts]
+(exit 0)
+
+--- terminal 2: the README 4.6 checks ---
+$ go run ./cmd/inventory-client get copy-1
+RPC помилка: code=Unauthenticated message="missing token"
+exit status 1
+(exit 1)
+
+$ go run ./cmd/inventory-client -token "$RDR" get copy-1
+{
+  "id":  "copy-1",
+  "book_id":  "book-1",
+  "inventory_number":  "INV-0001",
+  "status":  "AVAILABLE"
+}
+(exit 0)
+
+$ go run ./cmd/inventory-client -token "$RDR" register b INV-1
+RPC помилка: code=PermissionDenied message="role \"reader\" is not allowed to call /inventory.v1.InventoryService/RegisterCopy"
+exit status 1
+(exit 1)
+
+$ go run ./cmd/inventory-client -token "$RDR" bulk book-3 2
+RPC помилка: code=PermissionDenied message="role \"reader\" is not allowed to call /inventory.v1.InventoryService/BulkRegisterCopies"
+exit status 1
+(exit 1)
+
+$ go run ./cmd/inventory-client -token "$LIB" register b INV-1
+{
+  "id":  "copy-4",
+  "book_id":  "b",
+  "inventory_number":  "INV-1",
+  "status":  "AVAILABLE"
+}
+(exit 0)
+
+--- terminal 2: an expired token (-ttl=-1m) is rejected too ---
+$ export OLD=$(go run ./cmd/mint-token -sub oleh -role reader -ttl=-1m)
+(exit 0)
+
+$ go run ./cmd/inventory-client -token "$OLD" get copy-1
+RPC помилка: code=Unauthenticated message="invalid token"
+exit status 1
+(exit 1)
+
+--- terminal 2: grpcurl with the token in metadata ---
+$ grpcurl -plaintext -H "authorization: Bearer $RDR" -d '{"id":"copy-1"}' localhost:50051 inventory.v1.InventoryService/GetCopy
+{
+  "id": "copy-1",
+  "bookId": "book-1",
+  "inventoryNumber": "INV-0001",
+  "status": "AVAILABLE"
+}
+(exit 0)
+
+--- terminal 3: gateway; the Authorization header is forwarded as gRPC metadata ---
+$ go run ./cmd/gateway        # keeps running; its output is appended below
+
+$ curl -sS -i localhost:8080/v1/copies/copy-1
+HTTP/1.1 401 Unauthorized
+Content-Type: application/json
+Www-Authenticate: missing token
+Date: Tue, 27 Oct 2026 15:54:07 GMT
+Content-Length: 50
+
+{"code":16,"message":"missing token","details":[]}
+(exit 0)
+
+$ curl -sS -i -H "Authorization: Bearer $RDR" localhost:8080/v1/copies/copy-1
+HTTP/1.1 200 OK
+Content-Length: 85
+Content-Type: application/json
+Grpc-Metadata-Content-Type: application/grpc
+Date: Tue, 27 Oct 2026 15:54:07 GMT
+
+{"id":"copy-1","book_id":"book-1","inventory_number":"INV-0001","status":"AVAILABLE"}
+(exit 0)
+
+$ curl -sS -i -H "Authorization: Bearer $RDR" -X POST localhost:8080/v1/copies -d '{"book_id":"b","inventory_number":"X"}'
+HTTP/1.1 403 Forbidden
+Content-Type: application/json
+Date: Tue, 27 Oct 2026 15:54:07 GMT
+Content-Length: 118
+
+{"code":7,"message":"role \"reader\" is not allowed to call /inventory.v1.InventoryService/RegisterCopy","details":[]}
+(exit 0)
+
+--- Ctrl+C in terminal 3, then in terminal 1 ---
+
+--- terminal 1: server log ---
+time=2026-10-27T17:54:04.507+02:00 level=INFO msg="inventory server started" addr=[::]:50051 mtls=false auth=true simulate=false
+time=2026-10-27T17:54:04.507+02:00 level=WARN msg="TLS вимкнено — відкритий текст лише для локальної розробки (слайд 33)"
+time=2026-10-27T17:54:05.742+02:00 level=INFO msg=rpc kind=unary method=/inventory.v1.InventoryService/GetCopy code=Unauthenticated duration=4µs remote=[::1]:51121
+time=2026-10-27T17:54:05.898+02:00 level=INFO msg=rpc kind=unary method=/inventory.v1.InventoryService/GetCopy code=OK duration=140µs remote=[::1]:51124
+time=2026-10-27T17:54:06.045+02:00 level=INFO msg=rpc kind=unary method=/inventory.v1.InventoryService/RegisterCopy code=PermissionDenied duration=25µs remote=[::1]:51127
+time=2026-10-27T17:54:06.196+02:00 level=INFO msg=rpc kind=stream method=/inventory.v1.InventoryService/BulkRegisterCopies code=PermissionDenied duration=92µs remote=[::1]:51130
+time=2026-10-27T17:54:06.346+02:00 level=INFO msg=rpc kind=unary method=/inventory.v1.InventoryService/RegisterCopy code=OK duration=28µs remote=[::1]:51133
+time=2026-10-27T17:54:06.645+02:00 level=INFO msg=rpc kind=unary method=/inventory.v1.InventoryService/GetCopy code=Unauthenticated duration=24µs remote=[::1]:51136
+time=2026-10-27T17:54:06.768+02:00 level=INFO msg=rpc kind=unary method=/inventory.v1.InventoryService/GetCopy code=OK duration=21µs remote=[::1]:51139
+time=2026-10-27T17:54:06.768+02:00 level=INFO msg=rpc kind=stream method=/grpc.reflection.v1.ServerReflection/ServerReflectionInfo code=OK duration=2.443ms remote=[::1]:51139
+time=2026-10-27T17:54:07.036+02:00 level=INFO msg=rpc kind=unary method=/inventory.v1.InventoryService/GetCopy code=Unauthenticated duration=15µs remote=[::1]:51143
+time=2026-10-27T17:54:07.049+02:00 level=INFO msg=rpc kind=unary method=/inventory.v1.InventoryService/GetCopy code=OK duration=31µs remote=[::1]:51143
+time=2026-10-27T17:54:07.062+02:00 level=INFO msg=rpc kind=unary method=/inventory.v1.InventoryService/RegisterCopy code=PermissionDenied duration=22µs remote=[::1]:51143
+time=2026-10-27T17:54:07.069+02:00 level=INFO msg="shutting down..."
+time=2026-10-27T17:54:07.070+02:00 level=INFO msg=bye
+
+--- terminal 3: gateway log ---
+time=2026-10-27T17:54:06.962+02:00 level=INFO msg="gateway started" http=:8080 upstream_grpc=localhost:50051 mtls=false
+time=2026-10-27T17:54:07.021+02:00 level=INFO msg="rest request" method=GET path=/v1/copies/copy-1
+time=2026-10-27T17:54:07.049+02:00 level=INFO msg="rest request" method=GET path=/v1/copies/copy-1
+time=2026-10-27T17:54:07.062+02:00 level=INFO msg="rest request" method=POST path=/v1/copies
+time=2026-10-27T17:54:07.065+02:00 level=INFO msg=bye
+

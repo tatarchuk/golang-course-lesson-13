@@ -60,6 +60,9 @@ jobs:
           required=(
             README.md LICENSE Makefile go.mod .gitignore .gitattributes albums_lesson13_homework.md
             libratrack-grpc-demo/Makefile libratrack-grpc-demo/go.sum docs/environment.txt docs/demo/go-test.txt
+            docs/demo/quickstart.txt docs/demo/unary.txt docs/demo/server-stream.txt docs/demo/client-stream.txt
+            docs/demo/bidi.txt docs/demo/gateway.txt docs/demo/auth.txt docs/demo/mtls.txt docs/demo/tests.txt
+            docs/demo/bench.txt docs/demo/smoke.txt docs/demo/proto-regen.txt
           )
           missing=""
           for f in "${required[@]}"; do [ -f "$f" ] || missing="$missing $f"; done
@@ -95,4 +98,45 @@ jobs:
           env_not_tracked() { grep -qx '\.env' .gitignore && ! git ls-files --error-unmatch .env 2> /dev/null; }
           check ".env is ignored and not committed" env_not_tracked
 
+          scripts_parse() { local f; for f in libratrack-grpc-demo/scripts/*.sh; do bash -n "$f" || return 1; done; }
+          check "Shell scripts parse (bash -n)" scripts_parse
+
           exit $FAILED
+
+  demo:
+    name: Course demo (libratrack-grpc-demo)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: libratrack-grpc-demo
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod   # the root go.mod: one toolchain for every job
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: go mod tidy leaves go.mod/go.sum unchanged
+        run: go mod tidy && git diff --exit-code -- go.mod go.sum
+
+      - name: Tests with the race detector
+        run: go test -race -count=1 ./...
+
+      - name: Smoke (server, gateway, the slide 44 scenarios)
+        run: bash scripts/smoke.sh
+
+      - name: Protobuf compiler and the plugins pinned by the demo Makefile
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq protobuf-compiler libprotobuf-dev
+          protoc --version
+          make tools
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: Generated code is current (make proto; only the protoc version line may differ)
+        run: |
+          make proto
+          git diff -I'^// .*protoc ' --exit-code gen/

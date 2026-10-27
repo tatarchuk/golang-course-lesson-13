@@ -1,0 +1,25 @@
+# Lesson 13, Part 1.6 (b): bidirectional streaming, branch sync (demo README 4.4; slide 22), 2026-10-27.
+# Working directory: libratrack-grpc-demo/. The server is started fresh for this scenario.
+
+--- terminal 1: server ---
+$ go run ./cmd/inventory-server        # keeps running; its output is appended below
+
+--- terminal 2: three events out, an ack per event back; copy-999 does not exist ---
+$ go run ./cmd/inventory-client sync
+-> надіслано seq=1 copy=copy-1 status=BORROWED
+<- ack      seq=1 copy=copy-1 applied=true note="applied"
+-> надіслано seq=2 copy=copy-1 status=AVAILABLE
+<- ack      seq=2 copy=copy-1 applied=true note="applied"
+-> надіслано seq=3 copy=copy-999 status=BORROWED
+<- ack      seq=3 copy=copy-999 applied=false note="rejected: copy not found"
+(exit 0)
+
+--- Ctrl+C in terminal 1 ---
+
+--- terminal 1: server log ---
+time=2026-10-27T17:51:13.973+02:00 level=INFO msg="inventory server started" addr=[::]:50051 mtls=false auth=false simulate=false
+time=2026-10-27T17:51:13.973+02:00 level=WARN msg="TLS вимкнено — відкритий текст лише для локальної розробки (слайд 33)"
+time=2026-10-27T17:51:15.073+02:00 level=INFO msg=rpc kind=stream method=/inventory.v1.InventoryService/SyncInventory code=OK duration=903.716ms remote=[::1]:51083
+time=2026-10-27T17:51:15.085+02:00 level=INFO msg="shutting down..."
+time=2026-10-27T17:51:15.085+02:00 level=INFO msg=bye
+
