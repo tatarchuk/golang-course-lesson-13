@@ -3,7 +3,6 @@
 package store
 
 import (
-	"context"
 	"fmt"
 	"sync"
 	"time"
@@ -30,7 +29,6 @@ const subscriberBuffer = 16
 
 type subscription struct {
 	ch   chan Event
-	done chan struct{}
 	once sync.Once
 }
 
@@ -122,30 +120,23 @@ func (s *Store) Create(in AlbumInput) (Album, error) {
 	return clone(*a), nil
 }
 
-// Subscribe registers a subscriber for catalogue events. The returned cancel removes the
-// subscription and closes the channel; it is safe to call more than once. The subscription
-// is also removed when ctx is done, so a handler that passes its stream context cannot leak.
-func (s *Store) Subscribe(ctx context.Context) (<-chan Event, func()) {
-	sub := &subscription{ch: make(chan Event, subscriberBuffer), done: make(chan struct{})}
+// Subscribe registers a subscriber for catalogue events. The subscriber owns the
+// subscription: only the returned cancel removes it and closes the channel (safe to call
+// more than once), so a count of zero subscribers proves that every subscriber released
+// its own subscription, which is what the streaming handler's leak test relies on.
+func (s *Store) Subscribe() (<-chan Event, func()) {
+	sub := &subscription{ch: make(chan Event, subscriberBuffer)}
 	s.mu.Lock()
 	s.subs[sub] = struct{}{}
 	s.mu.Unlock()
 	cancel := func() {
 		sub.once.Do(func() {
 			s.mu.Lock()
+			defer s.mu.Unlock()
 			delete(s.subs, sub)
 			close(sub.ch) // under the lock: publish sends under the same lock, so never on a closed channel
-			s.mu.Unlock()
-			close(sub.done)
 		})
 	}
-	go func() {
-		select {
-		case <-ctx.Done():
-			cancel()
-		case <-sub.done:
-		}
-	}()
 	return sub.ch, cancel
 }
 

@@ -1,6 +1,7 @@
 package server_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
@@ -8,6 +9,7 @@ import (
 	"net"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -23,16 +25,37 @@ import (
 )
 
 // env is a real gRPC server on a loopback port with the interceptors of the binary,
-// and a client connected to it. Each test gets a fresh store with the seed data.
+// and a client connected to it. Each test gets a fresh store with the seed data and
+// the server log captured, so a test can assert what the handlers reported.
 type env struct {
 	client pb.AlbumsServiceClient
 	store  *store.Store
+	log    *syncBuffer
+}
+
+// syncBuffer collects the server log from the server goroutines without a data race.
+type syncBuffer struct {
+	mu sync.Mutex
+	b  bytes.Buffer
+}
+
+func (s *syncBuffer) Write(p []byte) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.b.Write(p)
+}
+
+func (s *syncBuffer) String() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.b.String()
 }
 
 func start(t *testing.T) env {
 	t.Helper()
 	st := store.New()
-	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	logs := &syncBuffer{}
+	log := slog.New(slog.NewTextHandler(logs, nil))
 	srv := grpc.NewServer(
 		grpc.ChainUnaryInterceptor(middleware.UnaryRecovery(log), middleware.UnaryLogging(log)),
 		grpc.ChainStreamInterceptor(middleware.StreamRecovery(log), middleware.StreamLogging(log)),
@@ -51,7 +74,7 @@ func start(t *testing.T) env {
 		_ = conn.Close()
 		srv.Stop()
 	})
-	return env{client: pb.NewAlbumsServiceClient(conn), store: st}
+	return env{client: pb.NewAlbumsServiceClient(conn), store: st, log: logs}
 }
 
 func callCtx(t *testing.T) context.Context {
@@ -246,7 +269,16 @@ func TestWatchAlbumsClientCancelIsCanceledAndReleasesTheSubscription(t *testing.
 	if _, err := stream.Recv(); status.Code(err) != codes.Canceled {
 		t.Fatalf("expected Canceled on the client, got %v", err)
 	}
-	waitFor(t, "the subscription to be released", func() bool { return e.store.SubscriberCount() == 0 })
+	// The proof of slide 46 is on the server side: the handler itself saw the cancellation,
+	// returned Canceled through the interceptor chain, and its deferred cancel released the
+	// subscription. Only the handler can release it, so the count is checked after its exit.
+	waitFor(t, "the handler to finish with the cancellation reason", func() bool {
+		out := e.log.String()
+		return strings.Contains(out, `reason="client gone / cancelled"`) && strings.Contains(out, "code=Canceled")
+	})
+	if n := e.store.SubscriberCount(); n != 0 {
+		t.Fatalf("subscriber count after the handler returned: %d, want 0 (the handler must release its subscription)", n)
+	}
 }
 
 // --- slide 46: errors are gRPC statuses, never plain error values ----------------------

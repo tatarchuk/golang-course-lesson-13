@@ -26,7 +26,7 @@ type Catalog interface {
 
 // Events is what the streaming call needs from the store.
 type Events interface {
-	Subscribe(ctx context.Context) (<-chan store.Event, func())
+	Subscribe() (<-chan store.Event, func())
 }
 
 // Server is the AlbumsService. Embedding Unimplemented... keeps it forward compatible
@@ -73,8 +73,8 @@ func (s *Server) CreateAlbum(_ context.Context, req *pb.CreateAlbumRequest) (*pb
 // context's status when the client cancels.
 func (s *Server) WatchAlbums(req *pb.WatchAlbumsRequest, stream pb.AlbumsService_WatchAlbumsServer) error {
 	ctx := stream.Context()
-	events, cancel := s.events.Subscribe(ctx)
-	defer cancel() // released on every exit, so nothing leaks
+	events, cancel := s.events.Subscribe()
+	defer cancel() // the handler owns the subscription: released on every exit, so nothing leaks
 
 	limit := req.GetMaxEvents()
 	s.log.Info("watch started", "max_events", limit)
@@ -86,8 +86,10 @@ func (s *Server) WatchAlbums(req *pb.WatchAlbumsRequest, stream pb.AlbumsService
 			return status.FromContextError(ctx.Err()).Err()
 		case ev, ok := <-events:
 			if !ok {
-				s.log.Info("watch finished", "reason", "subscription closed", "sent", sent)
-				return nil
+				// Only this handler's cancel closes the channel, after the loop; a closed
+				// channel here would be a store bug, never a normal end of the stream.
+				s.log.Error("watch finished", "reason", "subscription closed unexpectedly", "sent", sent)
+				return status.Error(codes.Internal, "event subscription closed")
 			}
 			if err := stream.Send(toEvent(ev)); err != nil {
 				s.log.Info("watch finished", "reason", "send failed", "err", err, "sent", sent)

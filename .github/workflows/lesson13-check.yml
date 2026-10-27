@@ -2,7 +2,7 @@ name: Lesson 13 check
 
 # CI of the Lesson 13 homework (gRPC microservices). Every check is reported in the job summary
 # (Actions -> run -> Summary) as PASS/FAIL; a step fails at the END if at least one check failed,
-# so one run shows all problems. Jobs are added as the homework grows: static, test, demo, sonar.
+# so one run shows all problems. Jobs: static, test (own module), demo (course demo).
 
 on:
   push:
@@ -77,7 +77,7 @@ jobs:
             internal/store/store_test.go internal/server/server.go internal/server/convert.go
             internal/server/server_test.go internal/middleware/middleware.go internal/middleware/middleware_test.go
             docs/albums/tests-before.txt docs/albums/tests-after.txt docs/albums/grpcurl.txt docs/albums/client.txt
-            docs/albums/smoke.txt prompts.txt
+            docs/albums/smoke.txt prompts.txt docs/review-raw.md
           )
           missing=""
           for f in "${required[@]}"; do [ -f "$f" ] || missing="$missing $f"; done
@@ -104,7 +104,8 @@ jobs:
           check "go mod tidy leaves go.mod/go.sum unchanged" tidy_clean
 
           # libratrack-grpc-demo is the course demo kept verbatim; its comments are Ukrainian.
-          ascii_only() { ! grep -rnP '[^\x00-\x7F]' --include=*.go --exclude-dir=libratrack-grpc-demo .; }
+          # Portable (GNU and BSD grep): bytes 0x80-0xFF in the own module's Go files; the demo dir is not listed.
+          ascii_only() { ! LC_ALL=C grep -rn --include='*.go' $'[\x80-\xFF]' cmd internal gen; }
           check "No non-ASCII characters in the homework's .go files" ascii_only
 
           no_tokens_in_docs() { ! grep -rEqs 'eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+' docs README.md prompts.txt; }
@@ -153,7 +154,7 @@ jobs:
       - name: Smoke (server on 127.0.0.1:50061, the client scenarios)
         run: bash scripts/smoke.sh
 
-      - name: Keep the coverage profile for the SonarQube Cloud job
+      - name: Keep the coverage profile as a run artifact
         uses: actions/upload-artifact@v4
         with:
           name: cover.out

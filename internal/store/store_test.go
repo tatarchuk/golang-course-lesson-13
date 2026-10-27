@@ -1,7 +1,6 @@
 package store
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -30,18 +29,6 @@ func artistNames(artists []Artist) []string {
 		names = append(names, a.Name)
 	}
 	return names
-}
-
-func waitFor(t *testing.T, what string, ok func() bool) {
-	t.Helper()
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		if ok() {
-			return
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-	t.Fatalf("timed out waiting for %s", what)
 }
 
 // --- seed ---------------------------------------------------------------------
@@ -252,7 +239,7 @@ func TestCreateAllowsSameTitleOnAnotherLabel(t *testing.T) {
 
 func TestSubscribeReceivesCreatedEvents(t *testing.T) {
 	s := New()
-	events, cancel := s.Subscribe(context.Background())
+	events, cancel := s.Subscribe()
 	defer cancel()
 	a, err := s.Create(validInput())
 	if err != nil {
@@ -270,7 +257,7 @@ func TestSubscribeReceivesCreatedEvents(t *testing.T) {
 
 func TestCancelIsIdempotentAndClosesTheChannel(t *testing.T) {
 	s := New()
-	events, cancel := s.Subscribe(context.Background())
+	events, cancel := s.Subscribe()
 	if n := s.SubscriberCount(); n != 1 {
 		t.Fatalf("subscriber count %d, want 1", n)
 	}
@@ -284,18 +271,9 @@ func TestCancelIsIdempotentAndClosesTheChannel(t *testing.T) {
 	}
 }
 
-func TestContextCancellationReleasesTheSubscription(t *testing.T) {
-	s := New()
-	ctx, stop := context.WithCancel(context.Background())
-	_, cancel := s.Subscribe(ctx)
-	defer cancel()
-	stop()
-	waitFor(t, "the subscription to go away", func() bool { return s.SubscriberCount() == 0 })
-}
-
 func TestSlowSubscriberDoesNotBlockCreate(t *testing.T) {
 	s := New()
-	_, cancel := s.Subscribe(context.Background()) // never reads
+	_, cancel := s.Subscribe() // never reads
 	defer cancel()
 	done := make(chan struct{})
 	go func() {

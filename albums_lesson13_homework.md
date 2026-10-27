@@ -108,6 +108,9 @@
 - Скриншоти S1–S21 у `docs/screenshots/` (перелік у звіті README).
 - Звіт у README: середовище, кроки, що не спрацювало як написано, результати SonarQube Cloud.
 
+Примітка про виконання (27.10.2026): за рішенням автора знімків власного сервісу два (S13–S14), а не S13–S16, і
+завдання 3 (SonarQube Cloud) не виконувалось, тому знімків S17–S21 немає; здано S1–S14. Деталі — у звіті README.
+
 ---
 
 # Homework 13 — Microservice architecture: gRPC instead of REST (variant `albums`)
@@ -219,3 +222,7 @@ Both checklists are ticked in the report with links to the evidence: for the dem
 - A public GitHub repository: the demo, the own service, the CI and SonarQube configuration, evidence under `docs/`.
 - Screenshots S1-S21 under `docs/screenshots/` (listed in the README report).
 - The report in the README: environment, steps, what did not work as written, the SonarQube Cloud results.
+
+Note on the delivery (2026-10-27): by the author's decision the own service has two screenshots (S13-S14), not
+S13-S16, and task 3 (SonarQube Cloud) was not done, so there are no S17-S21; S1-S14 were delivered. Details in the
+README report.
