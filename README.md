@@ -47,8 +47,8 @@ gRPC-сервіс обліку музичних альбомів на Go: кон
 
 ## Скриншоти
 
-Знімки зроблено в терміналі користувача після прогону кожного розділу README демо; поруч вказано журнал сесії
-з тими самими командами.
+Знімки зроблено в терміналі користувача після прогону кожного розділу README демо та власного сервісу; поруч
+вказано журнал сесії з тими самими командами.
 
 | Знімок | Що показано | Журнал |
 |---|---|---|
@@ -64,6 +64,8 @@ gRPC-сервіс обліку музичних альбомів на Go: кон
 | [s10-tests-bench.png](docs/screenshots/s10-tests-bench.png) | тести стрімінгу (`-run Watch -v`), розмір повідомлень і бенчмарк | `docs/demo/tests.txt`, `docs/demo/bench.txt` |
 | [s11-smoke.png](docs/screenshots/s11-smoke.png) | `make smoke`: «ВСЕ ГАРАЗД» | `docs/demo/smoke.txt` |
 | [s12-proto-regen.png](docs/screenshots/s12-proto-regen.png) | `make proto`: відмінність лише у двох рядках із версією protoc, відкат | `docs/demo/proto-regen.txt` |
+| [s13-albums-run.png](docs/screenshots/s13-albums-run.png) | власний сервіс: два `create` Go-клієнтом під час `watch` в іншому терміналі (події та `io.EOF` — у журналі) | `docs/albums/client.txt` |
+| [s14-albums-test-smoke.png](docs/screenshots/s14-albums-test-smoke.png) | власний сервіс: `make test` (покриття) і `make smoke` з перевірками стріму «ALL OK» | `docs/albums/tests-after.txt`, `docs/albums/smoke.txt` |
 
 ## CI
 
