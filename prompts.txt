@@ -1,0 +1,93 @@
+Lesson 13 prompt log (Albums gRPC, variant albums; microservice architecture, gRPC instead of REST).
+
+The homework needed no AI-generated artefact (the deck's optional ".proto from AI" item is out of scope),
+so this log holds one prompt: the final review. It was sent, exactly as below, to a fresh Claude Code
+subagent (general-purpose, Claude Fable 5.1, read-only on the checkout) once the code, the evidence and
+the README report were committed. Its unedited reply is docs/review-raw.md; the triage is in README.md,
+section "Lesson 13 Report: gRPC Microservices", subsection "Фінальне рев'ю".
+
+=== Final review (sent verbatim) ===
+
+You are a Senior Code Reviewer with expertise in software architecture, Go, gRPC and test quality.
+Review the completed Lesson 13 homework of the "Go with GenAI" course (variant albums) against its
+requirements before it is submitted. Work alone: do not spawn subagents. The review is read-only:
+do not create, modify or delete any file and do not run git commands that change the working tree,
+the index, HEAD or branches (git show, git diff and git log are fine). Build and test commands may
+write only to the Go build cache and to bin/ and cover.out, which are git-ignored.
+
+## What was implemented
+
+A fresh repository (no code of the earlier lessons) with:
+1. the course demo libratrack-grpc-demo/ copied verbatim and run on macOS, one text log per README
+   section under docs/demo/;
+2. an own gRPC service: proto/albums.proto (package albums.v1: GetAlbum and CreateAlbum unary,
+   WatchAlbums server streaming), generated code in gen/albums, an in-memory store with the Lesson 12
+   seed data and validation rules, the server with recovery and logging interceptors, a Go client,
+   scripts/smoke.sh, tests written before the code (docs/albums/tests-before.txt red,
+   docs/albums/tests-after.txt green), run logs docs/albums/grpcurl.txt, client.txt, smoke.txt;
+3. a GitHub Actions workflow with static, test and demo jobs;
+4. the README report in Ukrainian, section "Lesson 13 Report: gRPC Microservices".
+Task 3 of the grading (SonarQube Cloud) was dropped by the author's decision and the report says so.
+
+## Requirements and plan
+
+- Task text: albums_lesson13_homework.md (Ukrainian first, English second).
+- Plan: /Users/oleksandr.tatarchuk/.claude/plans/quirky-dazzling-hammock.md. Decisions taken during the
+  work are the lines containing "Ruling" in .superpowers/sdd/quirky-dazzling-hammock/progress.md: read
+  them before flagging a deviation from the plan and weigh each ruling on its merits.
+- The task text is a vision document: for behaviour it is silent on, judge by what a reasonable person
+  using this software would expect, and grade a finding by its effect on that person.
+
+## Git range to review
+
+Base: 7f6cbf2 (the scaffold commit). Head: HEAD of main. A review package (commit list, stat, full
+diff) is at .superpowers/sdd/quirky-dazzling-hammock/review-final.diff; the checkout itself is at HEAD.
+The course demo under libratrack-grpc-demo/ is course-supplied code copied verbatim: do not review its
+quality, only whether it was copied intact (go.sum and the four indirect requires in go.mod are the
+only additions) and whether the logs under docs/demo/ support what the report claims about it.
+
+## What to check, in this order
+
+1. Every number, code, message and file name in the README report against the evidence files it links
+   (docs/environment.txt, docs/demo/*.txt, docs/albums/*.txt) and against the code. List every mismatch.
+2. The own service against the task: three rpcs with exactly one stream; the status codes
+   InvalidArgument, NotFound, FailedPrecondition, AlreadyExists and Internal as the task states; no
+   errors.New or fmt.Errorf in internal/server/server.go; WatchAlbums works from stream.Context(),
+   subscribes before it streams, returns nil after max_events and the context's status on cancel, and
+   releases the subscription on every exit; plaintext only with a warning in the log; server
+   reflection; the client's get, create and watch commands.
+3. Concurrency and resource handling in internal/store (lock discipline around publish and cancel, the
+   drop-when-slow policy, the goroutine per subscription) and in the handlers.
+4. Test quality: do the tests exercise real behaviour (a real grpc.Server) and fail for the right
+   reasons? Which gaps are worth a test? Do tests-before.txt and tests-after.txt show the same test set?
+5. Run, from the repository root: gofmt -l . ; go vet ./... ; go test -race -count=1 ./... ;
+   bash scripts/smoke.sh. Then in libratrack-grpc-demo: go vet ./... ; go test -race -count=1 ./... ;
+   bash scripts/smoke.sh. Report the output. Replay the static job of
+   .github/workflows/lesson13-check.yml by extracting its run blocks (ruby -ryaml is available; point
+   RUNNER_TEMP and GITHUB_STEP_SUMMARY at files under /tmp) and report every PASS and FAIL line.
+6. The CI workflow: does each job check what the README says it checks; forward references (a file or
+   link named before it exists); the token guard; anything that would fail on a fresh clone.
+7. Documentation: the README (Ukrainian) and the homework file are consistent with the code; links
+   resolve; the screenshot table matches the files under docs/screenshots/.
+
+## Declined to judge
+
+Before your verdict, list every behaviour you considered and set aside as outside the plan or the task,
+one line each with the reason. An empty list means you set nothing aside.
+
+## Output format
+
+### Strengths
+### Issues
+#### Critical (Must Fix)
+#### Important (Should Fix)
+#### Minor (Nice to Have)
+For each issue: file:line, what is wrong, why it matters, how to fix.
+### Declined to judge
+### Command output (step 5, the verbatim tails)
+### Recommendations
+### Assessment
+Ready to submit? Yes, No or With fixes, with a two-sentence reasoning.
+
+Categorise by actual severity, be specific, acknowledge strengths, and do not report on code you did
+not read.

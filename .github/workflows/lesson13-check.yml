@@ -77,7 +77,7 @@ jobs:
             internal/store/store_test.go internal/server/server.go internal/server/convert.go
             internal/server/server_test.go internal/middleware/middleware.go internal/middleware/middleware_test.go
             docs/albums/tests-before.txt docs/albums/tests-after.txt docs/albums/grpcurl.txt docs/albums/client.txt
-            docs/albums/smoke.txt
+            docs/albums/smoke.txt prompts.txt
           )
           missing=""
           for f in "${required[@]}"; do [ -f "$f" ] || missing="$missing $f"; done
@@ -107,8 +107,8 @@ jobs:
           ascii_only() { ! grep -rnP '[^\x00-\x7F]' --include=*.go --exclude-dir=libratrack-grpc-demo .; }
           check "No non-ASCII characters in the homework's .go files" ascii_only
 
-          no_tokens_in_docs() { ! grep -rEqs 'eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+' docs README.md; }
-          check "No JWT committed under docs/ or in the README" no_tokens_in_docs
+          no_tokens_in_docs() { ! grep -rEqs 'eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+' docs README.md prompts.txt; }
+          check "No JWT committed under docs/, in the README or in prompts.txt" no_tokens_in_docs
 
           env_not_tracked() { grep -qx '\.env' .gitignore && ! git ls-files --error-unmatch .env 2> /dev/null; }
           check ".env is ignored and not committed" env_not_tracked
