@@ -76,7 +76,8 @@ jobs:
             internal/store/store.go internal/store/model.go internal/store/seed.go internal/store/errors.go
             internal/store/store_test.go internal/server/server.go internal/server/convert.go
             internal/server/server_test.go internal/middleware/middleware.go internal/middleware/middleware_test.go
-            docs/albums/tests-before.txt docs/albums/tests-after.txt
+            docs/albums/tests-before.txt docs/albums/tests-after.txt docs/albums/grpcurl.txt docs/albums/client.txt
+            docs/albums/smoke.txt
           )
           missing=""
           for f in "${required[@]}"; do [ -f "$f" ] || missing="$missing $f"; done

@@ -1,0 +1,40 @@
+# Lesson 13, Part 2.6: end-to-end smoke check of the own service (make smoke = bash scripts/smoke.sh), 2026-10-27.
+# Working directory: the repository root. The script builds to bin/ (git-ignored), starts the server on
+# 127.0.0.1:50061, runs the unary scenarios and the server stream with the Go client, and stops the server.
+
+$ make smoke
+bash scripts/smoke.sh
+unary:
+  OK   GetAlbum 1 returns Kind of Blue
+  OK   GetAlbum 999 -> NotFound
+  OK   GetAlbum 0 -> InvalidArgument
+  OK   CreateAlbum -> id 11
+  OK   CreateAlbum duplicate -> AlreadyExists
+  OK   CreateAlbum unknown genre -> FailedPrecondition
+  OK   CreateAlbum without title -> InvalidArgument
+server streaming:
+  OK   WatchAlbums delivers the 2 CREATED events
+  OK   WatchAlbums ends with io.EOF after max_events
+  OK   server log: watch finished, max_events reached
+ALL OK
+(exit 0)
+
+$ cat bin/server.log
+time=2026-10-27T21:41:44.692+02:00 level=INFO msg="albums server started" addr=127.0.0.1:50061 service=albums.v1.AlbumsService
+time=2026-10-27T21:41:44.692+02:00 level=WARN msg="TLS off: plaintext is for local development only (slide 33)"
+time=2026-10-27T21:41:45.202+02:00 level=INFO msg=rpc kind=unary method=/albums.v1.AlbumsService/GetAlbum code=OK duration=5µs remote=127.0.0.1:52361
+time=2026-10-27T21:41:45.218+02:00 level=INFO msg=rpc kind=unary method=/albums.v1.AlbumsService/GetAlbum code=NotFound duration=6µs remote=127.0.0.1:52362
+time=2026-10-27T21:41:45.231+02:00 level=INFO msg=rpc kind=unary method=/albums.v1.AlbumsService/GetAlbum code=InvalidArgument duration=2µs remote=127.0.0.1:52363
+time=2026-10-27T21:41:45.243+02:00 level=INFO msg=rpc kind=unary method=/albums.v1.AlbumsService/CreateAlbum code=OK duration=5µs remote=127.0.0.1:52364
+time=2026-10-27T21:41:45.255+02:00 level=INFO msg=rpc kind=unary method=/albums.v1.AlbumsService/CreateAlbum code=AlreadyExists duration=14µs remote=127.0.0.1:52365
+time=2026-10-27T21:41:45.266+02:00 level=INFO msg=rpc kind=unary method=/albums.v1.AlbumsService/CreateAlbum code=FailedPrecondition duration=5µs remote=127.0.0.1:52366
+time=2026-10-27T21:41:45.277+02:00 level=INFO msg=rpc kind=unary method=/albums.v1.AlbumsService/CreateAlbum code=InvalidArgument duration=5µs remote=127.0.0.1:52367
+time=2026-10-27T21:41:45.288+02:00 level=INFO msg="watch started" max_events=2
+time=2026-10-27T21:41:45.566+02:00 level=INFO msg=rpc kind=unary method=/albums.v1.AlbumsService/CreateAlbum code=OK duration=13µs remote=127.0.0.1:52369
+time=2026-10-27T21:41:45.579+02:00 level=INFO msg=rpc kind=unary method=/albums.v1.AlbumsService/CreateAlbum code=OK duration=15µs remote=127.0.0.1:52370
+time=2026-10-27T21:41:45.579+02:00 level=INFO msg="watch finished" reason="max_events reached" sent=2
+time=2026-10-27T21:41:45.579+02:00 level=INFO msg=rpc kind=stream method=/albums.v1.AlbumsService/WatchAlbums code=OK duration=291.294ms remote=127.0.0.1:52368
+time=2026-10-27T21:41:45.600+02:00 level=INFO msg="shutting down..."
+time=2026-10-27T21:41:45.600+02:00 level=INFO msg=bye
+(exit 0)
+

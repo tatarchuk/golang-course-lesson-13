@@ -1,0 +1,274 @@
+# Lesson 13, Part 2.4: the own AlbumsService driven with grpcurl through server reflection (slide 41), 2026-10-27.
+# Working directory: the repository root. The server of terminal 1 runs in the background of the session;
+# its log is appended at the end. Ctrl+C is SIGINT to the process group.
+
+--- terminal 1: server ---
+$ go run ./cmd/albums-server        # keeps running; its output is appended below
+
+--- terminal 2: discover the service ---
+$ grpcurl -plaintext localhost:50051 list
+albums.v1.AlbumsService
+grpc.reflection.v1.ServerReflection
+grpc.reflection.v1alpha.ServerReflection
+(exit 0)
+
+$ grpcurl -plaintext localhost:50051 list albums.v1.AlbumsService
+albums.v1.AlbumsService.CreateAlbum
+albums.v1.AlbumsService.GetAlbum
+albums.v1.AlbumsService.WatchAlbums
+(exit 0)
+
+$ grpcurl -plaintext localhost:50051 describe albums.v1.AlbumsService
+albums.v1.AlbumsService is a service:
+service AlbumsService {
+  rpc CreateAlbum ( .albums.v1.CreateAlbumRequest ) returns ( .albums.v1.Album );
+  rpc GetAlbum ( .albums.v1.GetAlbumRequest ) returns ( .albums.v1.Album );
+  rpc WatchAlbums ( .albums.v1.WatchAlbumsRequest ) returns ( stream .albums.v1.AlbumEvent );
+}
+(exit 0)
+
+$ grpcurl -plaintext localhost:50051 describe albums.v1.Album
+albums.v1.Album is a message:
+message Album {
+  int64 id = 1;
+  string title = 2;
+  string label = 3;
+  .albums.v1.Genre genre = 4;
+  repeated .albums.v1.Artist artists = 5;
+  optional int32 release_year = 6;
+  optional string notes = 7;
+  .google.protobuf.Timestamp created_at = 8;
+  .google.protobuf.Timestamp updated_at = 9;
+}
+(exit 0)
+
+--- terminal 2: GetAlbum (unary) and its codes ---
+$ grpcurl -plaintext -d '{"id":1}' localhost:50051 albums.v1.AlbumsService/GetAlbum
+{
+  "id": "1",
+  "title": "Kind of Blue",
+  "label": "Columbia",
+  "genre": {
+    "id": "1",
+    "name": "jazz"
+  },
+  "artists": [
+    {
+      "id": "1",
+      "name": "Miles Davis"
+    },
+    {
+      "id": "2",
+      "name": "John Coltrane"
+    },
+    {
+      "id": "6",
+      "name": "Bill Evans"
+    }
+  ],
+  "releaseYear": 1959,
+  "notes": "Recorded in 1959 with Coltrane and Evans.",
+  "createdAt": "2026-10-27T19:41:38.466054Z",
+  "updatedAt": "2026-10-27T19:41:38.466054Z"
+}
+(exit 0)
+
+$ grpcurl -plaintext -d '{"id":10}' localhost:50051 albums.v1.AlbumsService/GetAlbum
+{
+  "id": "10",
+  "title": "Waltz for Debby",
+  "label": "Riverside",
+  "genre": {
+    "id": "1",
+    "name": "jazz"
+  },
+  "artists": [
+    {
+      "id": "6",
+      "name": "Bill Evans"
+    }
+  ],
+  "notes": "Live at the Village Vanguard.",
+  "createdAt": "2026-10-27T19:41:38.466054Z",
+  "updatedAt": "2026-10-27T19:41:38.466054Z"
+}
+(exit 0)
+
+$ grpcurl -plaintext -d '{"id":999}' localhost:50051 albums.v1.AlbumsService/GetAlbum
+ERROR:
+  Code: NotFound
+  Message: album 999 not found
+(exit 69)
+
+$ grpcurl -plaintext -d '{"id":0}' localhost:50051 albums.v1.AlbumsService/GetAlbum
+ERROR:
+  Code: InvalidArgument
+  Message: id must be a positive integer
+(exit 67)
+
+--- terminal 2: CreateAlbum (unary) and its codes ---
+$ grpcurl -plaintext -d '{"title":"Blue Train","label":"Blue Note","genre_id":1,"artist_ids":[2],"release_year":1957,"notes":"Coltrane on Blue Note."}' localhost:50051 albums.v1.AlbumsService/CreateAlbum
+{
+  "id": "11",
+  "title": "Blue Train",
+  "label": "Blue Note",
+  "genre": {
+    "id": "1",
+    "name": "jazz"
+  },
+  "artists": [
+    {
+      "id": "2",
+      "name": "John Coltrane"
+    }
+  ],
+  "releaseYear": 1957,
+  "notes": "Coltrane on Blue Note.",
+  "createdAt": "2026-10-27T19:41:38.974519Z",
+  "updatedAt": "2026-10-27T19:41:38.974519Z"
+}
+(exit 0)
+
+$ grpcurl -plaintext -d '{"title":"Blue Train","label":"Blue Note","genre_id":1,"artist_ids":[2]}' localhost:50051 albums.v1.AlbumsService/CreateAlbum
+ERROR:
+  Code: AlreadyExists
+  Message: album with this title and label already exists: "Blue Train" / "Blue Note"
+(exit 70)
+
+$ grpcurl -plaintext -d '{"title":"Giant Steps","label":"Atlantic","genre_id":99,"artist_ids":[2]}' localhost:50051 albums.v1.AlbumsService/CreateAlbum
+ERROR:
+  Code: FailedPrecondition
+  Message: unknown reference: genre 99
+(exit 73)
+
+$ grpcurl -plaintext -d '{"label":"Atlantic","genre_id":1,"artist_ids":[2,2]}' localhost:50051 albums.v1.AlbumsService/CreateAlbum
+ERROR:
+  Code: InvalidArgument
+  Message: validation error: required fields missing or empty: title; artist_ids must not repeat an id
+(exit 67)
+
+--- terminal 2: WatchAlbums (server streaming) with max_events=2, two creates from terminal 3 ---
+$ grpcurl -plaintext -d '{"max_events":2}' localhost:50051 albums.v1.AlbumsService/WatchAlbums        # keeps running; its output is appended below
+
+--- terminal 3 ---
+$ grpcurl -plaintext -d '{"title":"Giant Steps","label":"Atlantic","genre_id":1,"artist_ids":[2]}' localhost:50051 albums.v1.AlbumsService/CreateAlbum
+{
+  "id": "12",
+  "title": "Giant Steps",
+  "label": "Atlantic",
+  "genre": {
+    "id": "1",
+    "name": "jazz"
+  },
+  "artists": [
+    {
+      "id": "2",
+      "name": "John Coltrane"
+    }
+  ],
+  "createdAt": "2026-10-27T19:41:39.154198Z",
+  "updatedAt": "2026-10-27T19:41:39.154198Z"
+}
+(exit 0)
+
+$ grpcurl -plaintext -d '{"title":"Nevermind","label":"Sub Pop","genre_id":2,"artist_ids":[3]}' localhost:50051 albums.v1.AlbumsService/CreateAlbum
+{
+  "id": "13",
+  "title": "Nevermind",
+  "label": "Sub Pop",
+  "genre": {
+    "id": "2",
+    "name": "rock"
+  },
+  "artists": [
+    {
+      "id": "3",
+      "name": "Nirvana"
+    }
+  ],
+  "createdAt": "2026-10-27T19:41:39.172232Z",
+  "updatedAt": "2026-10-27T19:41:39.172232Z"
+}
+(exit 0)
+
+--- terminal 2: the two events, then grpcurl exits when the server closes the stream ---
+{
+  "type": "CREATED",
+  "album": {
+    "id": "12",
+    "title": "Giant Steps",
+    "label": "Atlantic",
+    "genre": {
+      "id": "1",
+      "name": "jazz"
+    },
+    "artists": [
+      {
+        "id": "2",
+        "name": "John Coltrane"
+      }
+    ],
+    "createdAt": "2026-10-27T19:41:39.154198Z",
+    "updatedAt": "2026-10-27T19:41:39.154198Z"
+  },
+  "at": "2026-10-27T19:41:39.154198Z"
+}
+{
+  "type": "CREATED",
+  "album": {
+    "id": "13",
+    "title": "Nevermind",
+    "label": "Sub Pop",
+    "genre": {
+      "id": "2",
+      "name": "rock"
+    },
+    "artists": [
+      {
+        "id": "3",
+        "name": "Nirvana"
+      }
+    ],
+    "createdAt": "2026-10-27T19:41:39.172232Z",
+    "updatedAt": "2026-10-27T19:41:39.172232Z"
+  },
+  "at": "2026-10-27T19:41:39.172232Z"
+}
+(exit 0)
+
+--- Ctrl+C in terminal 1 ---
+
+--- terminal 1: server log ---
+time=2026-10-27T21:41:38.466+02:00 level=INFO msg="albums server started" addr=[::]:50051 service=albums.v1.AlbumsService
+time=2026-10-27T21:41:38.467+02:00 level=WARN msg="TLS off: plaintext is for local development only (slide 33)"
+time=2026-10-27T21:41:38.843+02:00 level=INFO msg=rpc kind=stream method=/grpc.reflection.v1.ServerReflection/ServerReflectionInfo code=OK duration=677µs remote=[::1]:52277
+time=2026-10-27T21:41:38.863+02:00 level=INFO msg=rpc kind=stream method=/grpc.reflection.v1.ServerReflection/ServerReflectionInfo code=OK duration=803µs remote=[::1]:52280
+time=2026-10-27T21:41:38.881+02:00 level=INFO msg=rpc kind=stream method=/grpc.reflection.v1.ServerReflection/ServerReflectionInfo code=OK duration=764µs remote=[::1]:52283
+time=2026-10-27T21:41:38.897+02:00 level=INFO msg=rpc kind=stream method=/grpc.reflection.v1.ServerReflection/ServerReflectionInfo code=OK duration=506µs remote=[::1]:52286
+time=2026-10-27T21:41:38.913+02:00 level=INFO msg=rpc kind=unary method=/albums.v1.AlbumsService/GetAlbum code=OK duration=3µs remote=[::1]:52289
+time=2026-10-27T21:41:38.914+02:00 level=INFO msg=rpc kind=stream method=/grpc.reflection.v1.ServerReflection/ServerReflectionInfo code=OK duration=988µs remote=[::1]:52289
+time=2026-10-27T21:41:38.929+02:00 level=INFO msg=rpc kind=unary method=/albums.v1.AlbumsService/GetAlbum code=OK duration=3µs remote=[::1]:52292
+time=2026-10-27T21:41:38.929+02:00 level=INFO msg=rpc kind=stream method=/grpc.reflection.v1.ServerReflection/ServerReflectionInfo code=OK duration=604µs remote=[::1]:52292
+time=2026-10-27T21:41:38.944+02:00 level=INFO msg=rpc kind=unary method=/albums.v1.AlbumsService/GetAlbum code=NotFound duration=4µs remote=[::1]:52295
+time=2026-10-27T21:41:38.944+02:00 level=INFO msg=rpc kind=stream method=/grpc.reflection.v1.ServerReflection/ServerReflectionInfo code=OK duration=650µs remote=[::1]:52295
+time=2026-10-27T21:41:38.959+02:00 level=INFO msg=rpc kind=unary method=/albums.v1.AlbumsService/GetAlbum code=InvalidArgument duration=2µs remote=[::1]:52298
+time=2026-10-27T21:41:38.959+02:00 level=INFO msg=rpc kind=stream method=/grpc.reflection.v1.ServerReflection/ServerReflectionInfo code=OK duration=541µs remote=[::1]:52298
+time=2026-10-27T21:41:38.974+02:00 level=INFO msg=rpc kind=unary method=/albums.v1.AlbumsService/CreateAlbum code=OK duration=9µs remote=[::1]:52301
+time=2026-10-27T21:41:38.974+02:00 level=INFO msg=rpc kind=stream method=/grpc.reflection.v1.ServerReflection/ServerReflectionInfo code=OK duration=871µs remote=[::1]:52301
+time=2026-10-27T21:41:38.989+02:00 level=INFO msg=rpc kind=unary method=/albums.v1.AlbumsService/CreateAlbum code=AlreadyExists duration=9µs remote=[::1]:52304
+time=2026-10-27T21:41:38.989+02:00 level=INFO msg=rpc kind=stream method=/grpc.reflection.v1.ServerReflection/ServerReflectionInfo code=OK duration=1.161ms remote=[::1]:52304
+time=2026-10-27T21:41:39.004+02:00 level=INFO msg=rpc kind=unary method=/albums.v1.AlbumsService/CreateAlbum code=FailedPrecondition duration=7µs remote=[::1]:52307
+time=2026-10-27T21:41:39.004+02:00 level=INFO msg=rpc kind=stream method=/grpc.reflection.v1.ServerReflection/ServerReflectionInfo code=OK duration=715µs remote=[::1]:52307
+time=2026-10-27T21:41:39.018+02:00 level=INFO msg=rpc kind=unary method=/albums.v1.AlbumsService/CreateAlbum code=InvalidArgument duration=7µs remote=[::1]:52310
+time=2026-10-27T21:41:39.018+02:00 level=INFO msg=rpc kind=stream method=/grpc.reflection.v1.ServerReflection/ServerReflectionInfo code=OK duration=728µs remote=[::1]:52310
+time=2026-10-27T21:41:39.034+02:00 level=INFO msg="watch started" max_events=2
+time=2026-10-27T21:41:39.154+02:00 level=INFO msg=rpc kind=unary method=/albums.v1.AlbumsService/CreateAlbum code=OK duration=7µs remote=[::1]:52316
+time=2026-10-27T21:41:39.154+02:00 level=INFO msg=rpc kind=stream method=/grpc.reflection.v1.ServerReflection/ServerReflectionInfo code=OK duration=1.038ms remote=[::1]:52316
+time=2026-10-27T21:41:39.172+02:00 level=INFO msg=rpc kind=unary method=/albums.v1.AlbumsService/CreateAlbum code=OK duration=5µs remote=[::1]:52319
+time=2026-10-27T21:41:39.172+02:00 level=INFO msg="watch finished" reason="max_events reached" sent=2
+time=2026-10-27T21:41:39.172+02:00 level=INFO msg=rpc kind=stream method=/albums.v1.AlbumsService/WatchAlbums code=OK duration=137.686ms remote=[::1]:52313
+time=2026-10-27T21:41:39.172+02:00 level=INFO msg=rpc kind=stream method=/grpc.reflection.v1.ServerReflection/ServerReflectionInfo code=OK duration=138.322ms remote=[::1]:52313
+time=2026-10-27T21:41:39.172+02:00 level=INFO msg=rpc kind=stream method=/grpc.reflection.v1.ServerReflection/ServerReflectionInfo code=OK duration=1.172ms remote=[::1]:52319
+time=2026-10-27T21:41:39.181+02:00 level=INFO msg="shutting down..."
+time=2026-10-27T21:41:39.181+02:00 level=INFO msg=bye
+
