@@ -27,6 +27,14 @@ jobs:
         with:
           go-version-file: go.mod
 
+      - name: Protobuf compiler and the plugins pinned by the Makefile
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq protobuf-compiler libprotobuf-dev
+          protoc --version
+          make tools
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
       - name: Prepare check helper
         run: |
           cat > "$RUNNER_TEMP/check.sh" <<'EOF'
@@ -63,6 +71,7 @@ jobs:
             docs/demo/quickstart.txt docs/demo/unary.txt docs/demo/server-stream.txt docs/demo/client-stream.txt
             docs/demo/bidi.txt docs/demo/gateway.txt docs/demo/auth.txt docs/demo/mtls.txt docs/demo/tests.txt
             docs/demo/bench.txt docs/demo/smoke.txt docs/demo/proto-regen.txt
+            proto/albums.proto gen/albums/albums.pb.go gen/albums/albums_grpc.pb.go docs/albums/proto-gen.txt
           )
           missing=""
           for f in "${required[@]}"; do [ -f "$f" ] || missing="$missing $f"; done
@@ -100,6 +109,15 @@ jobs:
 
           scripts_parse() { local f; for f in libratrack-grpc-demo/scripts/*.sh; do bash -n "$f" || return 1; done; }
           check "Shell scripts parse (bash -n)" scripts_parse
+
+          check "proto: package albums.v1 (versioned package, slide 17)" grep -q '^package albums.v1;' proto/albums.proto
+          proto_rpcs() { [ "$(grep -c '^  rpc ' proto/albums.proto)" -eq 3 ]; }
+          check "proto: three rpcs" proto_rpcs
+          proto_stream() { [ "$(grep -c 'returns (stream ' proto/albums.proto)" -eq 1 ]; }
+          check "proto: exactly one server-streaming rpc" proto_stream
+          # Last: make proto rewrites gen/ (only the protoc version line may differ between protoc builds).
+          gen_current() { make proto > /dev/null && git diff -I'^// .*protoc ' --exit-code gen/; }
+          check "Generated code is current (make proto)" gen_current
 
           exit $FAILED
 

@@ -1,0 +1,89 @@
+syntax = "proto3";
+
+// albums.v1 is the album catalogue of the earlier lessons (variant "albums") as a gRPC
+// contract. The package name carries the version (slide 17): a breaking change would
+// become albums.v2 instead of changing this file.
+package albums.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "homework/gen/albums;albums";
+
+// AlbumsService has two unary calls that mirror GET /albums/{id} and POST /albums of
+// the REST API from the earlier lessons, and one server-streaming call that pushes
+// catalogue events as they happen.
+service AlbumsService {
+  // GetAlbum returns one album by id.
+  // Codes: INVALID_ARGUMENT when id < 1, NOT_FOUND when no album has that id.
+  rpc GetAlbum(GetAlbumRequest) returns (Album);
+
+  // CreateAlbum validates the input, stores a new album and returns it with its id and
+  // timestamps. Codes: INVALID_ARGUMENT (validation), FAILED_PRECONDITION (unknown
+  // genre or artist id), ALREADY_EXISTS (an album with the same title and label).
+  rpc CreateAlbum(CreateAlbumRequest) returns (Album);
+
+  // WatchAlbums streams catalogue events live (server streaming, slide 20). With
+  // max_events > 0 the server closes the stream after that many events and the client
+  // sees a clean io.EOF; with 0 the stream runs until the client cancels it.
+  rpc WatchAlbums(WatchAlbumsRequest) returns (stream AlbumEvent);
+}
+
+// Genre is a music genre; every album belongs to exactly one.
+message Genre {
+  int64 id = 1;
+  string name = 2;
+}
+
+// Artist is a performer; an album has one or more artists.
+message Artist {
+  int64 id = 1;
+  string name = 2;
+}
+
+// Album is the stored resource. release_year and notes are optional: an unset value
+// stays distinguishable from 0 and "", as null did in the REST API.
+message Album {
+  int64 id = 1;
+  string title = 2;
+  string label = 3;
+  Genre genre = 4;
+  repeated Artist artists = 5;
+  optional int32 release_year = 6;
+  optional string notes = 7;
+  google.protobuf.Timestamp created_at = 8;
+  google.protobuf.Timestamp updated_at = 9;
+}
+
+// GetAlbumRequest names the album to return.
+message GetAlbumRequest {
+  int64 id = 1;
+}
+
+// CreateAlbumRequest is the album to create (the AlbumInput of the REST API). Relations
+// are given by id, so a client can only reference genres and artists that exist.
+message CreateAlbumRequest {
+  string title = 1;
+  string label = 2;
+  int64 genre_id = 3;
+  repeated int64 artist_ids = 4;
+  optional int32 release_year = 5;
+  optional string notes = 6;
+}
+
+// WatchAlbumsRequest configures the stream: max_events > 0 ends it after that many
+// events, 0 means no limit.
+message WatchAlbumsRequest {
+  int32 max_events = 1;
+}
+
+// AlbumEvent is one catalogue change. Type has an UNSPECIFIED zero value (slide 17), so
+// an unset field is never mistaken for a real event.
+message AlbumEvent {
+  enum Type {
+    TYPE_UNSPECIFIED = 0;
+    CREATED = 1;
+  }
+  Type type = 1;
+  Album album = 2;
+  google.protobuf.Timestamp at = 3;
+}
