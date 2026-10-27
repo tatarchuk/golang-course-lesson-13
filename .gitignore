@@ -1,0 +1,13 @@
+# build and test artifacts
+bin/
+*.out
+*.test
+
+# IDE and local configuration
+.idea/
+.vscode/
+*.iml
+.env
+
+# superpowers plan workspace (scratch)
+.superpowers/
