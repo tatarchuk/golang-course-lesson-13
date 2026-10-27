@@ -59,6 +59,7 @@ jobs:
 
           required=(
             README.md LICENSE Makefile go.mod .gitignore .gitattributes albums_lesson13_homework.md
+            libratrack-grpc-demo/Makefile libratrack-grpc-demo/go.sum docs/environment.txt docs/demo/go-test.txt
           )
           missing=""
           for f in "${required[@]}"; do [ -f "$f" ] || missing="$missing $f"; done
@@ -74,8 +75,13 @@ jobs:
             if [ -n "$out" ]; then echo "Not formatted:"; echo "$out"; return 1; fi
           }
           check "gofmt: all files formatted" gofmt_clean
-          check "go vet ./..." go vet ./...
-          check "go build ./..." go build ./...
+          # go vet and go build exit 1 when "./..." matches no packages; the root module gets its
+          # packages in Part 2, until then these checks pass with a note.
+          root_packages() { go list ./... 2>/dev/null; }
+          vet_ok() { if [ -z "$(root_packages)" ]; then echo "no packages in the root module yet"; return 0; fi; go vet ./...; }
+          check "go vet ./... (root module)" vet_ok
+          build_ok() { if [ -z "$(root_packages)" ]; then echo "no packages in the root module yet"; return 0; fi; go build ./...; }
+          check "go build ./... (root module)" build_ok
           tidy_clean() { go mod tidy && git diff --exit-code -- go.mod go.sum; }
           check "go mod tidy leaves go.mod/go.sum unchanged" tidy_clean
 

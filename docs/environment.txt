@@ -1,0 +1,45 @@
+# Lesson 13 environment, captured on 2026-10-27 with scripts of the session (Part 1.1).
+# Install: brew install protobuf; go install of the plugins at the versions pinned by the demo Makefile
+# (protoc-gen-go v1.34.2, protoc-gen-go-grpc v1.5.1, protoc-gen-grpc-gateway v2.20.0) and grpcurl@latest;
+# $(go env GOPATH)/bin added to PATH.
+
+$ sw_vers
+ProductName:		macOS
+ProductVersion:		27.0.1
+BuildVersion:		26A434
+
+$ uname -m
+arm64
+
+$ go version
+go version go1.27.1 darwin/arm64
+
+$ go env GOPATH GOFLAGS
+/Users/oleksandr.tatarchuk/go
+
+
+$ protoc --version
+libprotoc 36.2
+
+$ brew list --versions protobuf
+protobuf 36.2
+
+$ ls /opt/homebrew/opt/protobuf/include/google/protobuf/timestamp.proto
+/opt/homebrew/opt/protobuf/include/google/protobuf/timestamp.proto
+
+$ protoc-gen-go --version
+protoc-gen-go v1.34.2
+
+$ protoc-gen-go-grpc --version
+protoc-gen-go-grpc 1.5.1
+
+$ go version -m $(go env GOPATH)/bin/protoc-gen-grpc-gateway | head -3
+/Users/oleksandr.tatarchuk/go/bin/protoc-gen-grpc-gateway: go1.27.1
+	path	github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-grpc-gateway
+	mod	github.com/grpc-ecosystem/grpc-gateway/v2	v2.20.0	h1:bkypFPDjIYGfCYD5mRBvpqxfYX1YCS1PXdKYWi8FsN0=
+
+$ go version -m $(go env GOPATH)/bin/grpcurl | head -3
+/Users/oleksandr.tatarchuk/go/bin/grpcurl: go1.27.1
+	path	github.com/fullstorydev/grpcurl/cmd/grpcurl
+	mod	github.com/fullstorydev/grpcurl	v1.9.4	h1:7bC3tlRwS7dPyfhBo0Xmigns8hWH/K4fg9NrafpY57k=
+
