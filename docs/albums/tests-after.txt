@@ -1,0 +1,94 @@
+# Lesson 13, Part 2.3: the own service implemented, the tests of tests-before.txt now green, 2026-10-27.
+# Working directory: the repository root. New: internal/store, internal/middleware, internal/server,
+# cmd/albums-server, cmd/albums-client, scripts/smoke.sh, Makefile targets build/server/client/test/smoke.
+
+$ git status --short cmd internal scripts
+?? cmd/
+?? internal/
+?? scripts/
+(exit 0)
+
+$ gofmt -l . && echo "gofmt: nothing to format"
+gofmt: nothing to format
+(exit 0)
+
+$ go vet ./... && echo "vet ok"
+vet ok
+(exit 0)
+
+$ go build ./... && echo "build ok"
+build ok
+(exit 0)
+
+$ make test
+go test -race -count=1 -coverprofile=cover.out ./...
+	homework/cmd/albums-client		coverage: 0.0% of statements
+	homework/cmd/albums-server		coverage: 0.0% of statements
+	homework/gen/albums		coverage: 0.0% of statements
+ok  	homework/internal/middleware	1.476s	coverage: 96.2% of statements
+ok  	homework/internal/server	1.438s	coverage: 86.3% of statements
+ok  	homework/internal/store	1.295s	coverage: 100.0% of statements
+(exit 0)
+
+$ go tool cover -func=cover.out | tail -1
+total:						(statements)					30.0%
+(exit 0)
+
+$ go test ./internal/... -count=1 -v 2>&1 | grep -E "^(--- |ok|FAIL)"
+--- PASS: TestUnaryRecoveryTurnsPanicIntoInternal (0.00s)
+--- PASS: TestStreamRecoveryTurnsPanicIntoInternal (0.00s)
+--- PASS: TestUnaryLoggingRecordsMethodAndCode (0.00s)
+--- PASS: TestStreamLoggingRecordsMethodAndCode (0.00s)
+ok  	homework/internal/middleware	0.380s
+--- PASS: TestGetAlbumReturnsKindOfBlueWithRelationsAndTimestamps (0.00s)
+--- PASS: TestGetAlbumUnknownIDIsNotFound (0.00s)
+--- PASS: TestGetAlbumZeroIDIsInvalidArgument (0.00s)
+--- PASS: TestGetAlbumTenHasNoReleaseYear (0.00s)
+--- PASS: TestCreateAlbumReturnsIDElevenAndGetFindsIt (0.00s)
+--- PASS: TestCreateAlbumValidationErrorsAreInvalidArgument (0.00s)
+--- PASS: TestCreateAlbumUnknownGenreIsFailedPrecondition (0.00s)
+--- PASS: TestCreateAlbumDuplicateIsAlreadyExists (0.00s)
+--- PASS: TestWatchAlbumsSendsCreatedEventsInOrderThenEOFAfterMaxEvents (0.01s)
+--- PASS: TestWatchAlbumsClientCancelIsCanceledAndReleasesTheSubscription (0.02s)
+--- PASS: TestServerHandlersUseStatusErrorsOnly (0.00s)
+ok  	homework/internal/server	0.426s
+--- PASS: TestSeedHasTenAlbumsEachWithArtistsAndTimestamps (0.00s)
+--- PASS: TestGetReturnsKindOfBlueWithGenreAndArtistsInSeedOrder (0.00s)
+--- PASS: TestGetAlbumTenHasNoReleaseYear (0.00s)
+--- PASS: TestGetUnknownIDIsNotFound (0.00s)
+--- PASS: TestValidateAcceptsCompleteInput (0.00s)
+--- PASS: TestValidateAcceptsOmittedOptionalFields (0.00s)
+--- PASS: TestValidateRejectsBlankRequiredFields (0.00s)
+--- PASS: TestValidateRejectsNonPositiveGenreID (0.00s)
+--- PASS: TestValidateRejectsEmptyOrInvalidArtistIDs (0.00s)
+--- PASS: TestValidateRejectsReleaseYearOutOfRange (0.00s)
+--- PASS: TestCreateAssignsNextIDResolvesRelationsAndSetsTimestamps (0.00s)
+--- PASS: TestCreateRejectsInvalidInput (0.00s)
+--- PASS: TestCreateRejectsUnknownGenre (0.00s)
+--- PASS: TestCreateRejectsUnknownArtist (0.00s)
+--- PASS: TestCreateRejectsDuplicateTitleAndLabel (0.00s)
+--- PASS: TestCreateAllowsSameTitleOnAnotherLabel (0.00s)
+--- PASS: TestSubscribeReceivesCreatedEvents (0.00s)
+--- PASS: TestCancelIsIdempotentAndClosesTheChannel (0.00s)
+--- PASS: TestContextCancellationReleasesTheSubscription (0.01s)
+--- PASS: TestSlowSubscriberDoesNotBlockCreate (0.00s)
+ok  	homework/internal/store	0.282s
+(exit 0)
+
+$ make smoke
+bash scripts/smoke.sh
+unary:
+  OK   GetAlbum 1 returns Kind of Blue
+  OK   GetAlbum 999 -> NotFound
+  OK   GetAlbum 0 -> InvalidArgument
+  OK   CreateAlbum -> id 11
+  OK   CreateAlbum duplicate -> AlreadyExists
+  OK   CreateAlbum unknown genre -> FailedPrecondition
+  OK   CreateAlbum without title -> InvalidArgument
+server streaming:
+  OK   WatchAlbums delivers the 2 CREATED events
+  OK   WatchAlbums ends with io.EOF after max_events
+  OK   server log: watch finished, max_events reached
+ALL OK
+(exit 0)
+

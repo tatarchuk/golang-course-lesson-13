@@ -1,0 +1,55 @@
+# Lesson 13, Part 2.2: the tests of the own service, written before the implementation (red run), 2026-10-27.
+# Working directory: the repository root. internal/store, internal/middleware and internal/server contain only
+# their _test.go files at this point, so every package fails to build on the symbols the tests expect.
+
+$ git status --short internal
+?? internal/
+(exit 0)
+
+$ wc -l internal/store/store_test.go internal/middleware/middleware_test.go internal/server/server_test.go
+     317 internal/store/store_test.go
+      65 internal/middleware/middleware_test.go
+     264 internal/server/server_test.go
+     646 total
+(exit 0)
+
+$ go test ./... -count=1
+homework/internal/middleware: no non-test Go files in /Users/oleksandr.tatarchuk/repo/golang-course-lesson-13/internal/middleware
+homework/internal/store: no non-test Go files in /Users/oleksandr.tatarchuk/repo/golang-course-lesson-13/internal/store
+homework/internal/server: no non-test Go files in /Users/oleksandr.tatarchuk/repo/golang-course-lesson-13/internal/server
+# homework/internal/store [homework/internal/store.test]
+internal/store/store_test.go:14:19: undefined: AlbumInput
+internal/store/store_test.go:17:9: undefined: AlbumInput
+internal/store/store_test.go:27:28: undefined: Artist
+internal/store/store_test.go:50:7: undefined: New
+internal/store/store_test.go:63:42: undefined: ErrNotFound
+internal/store/store_test.go:69:12: undefined: New
+internal/store/store_test.go:76:17: undefined: Genre
+internal/store/store_test.go:91:12: undefined: New
+internal/store/store_test.go:101:7: undefined: New
+internal/store/store_test.go:103:43: undefined: ErrNotFound
+internal/store/store_test.go:103:43: too many errors
+# homework/internal/middleware [homework/internal/middleware.test]
+internal/middleware/middleware_test.go:29:12: undefined: UnaryRecovery
+internal/middleware/middleware_test.go:37:9: undefined: StreamRecovery
+internal/middleware/middleware_test.go:47:9: undefined: UnaryLogging
+internal/middleware/middleware_test.go:59:6: undefined: StreamLogging
+?   	homework/gen/albums	[no test files]
+FAIL	homework/internal/middleware [build failed]
+FAIL	homework/internal/server [build failed]
+FAIL	homework/internal/store [build failed]
+FAIL
+(exit 1)
+
+$ go vet ./...
+homework/internal/middleware: no non-test Go files in /Users/oleksandr.tatarchuk/repo/golang-course-lesson-13/internal/middleware
+homework/internal/store: no non-test Go files in /Users/oleksandr.tatarchuk/repo/golang-course-lesson-13/internal/store
+homework/internal/server: no non-test Go files in /Users/oleksandr.tatarchuk/repo/golang-course-lesson-13/internal/server
+# homework/internal/store
+# [homework/internal/store]
+vet: internal/store/store_test.go:14:19: undefined: AlbumInput
+# homework/internal/middleware
+# [homework/internal/middleware]
+vet: internal/middleware/middleware_test.go:29:12: undefined: UnaryRecovery
+(exit 1)
+

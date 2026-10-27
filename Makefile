@@ -14,10 +14,25 @@ proto:         ## regenerate gen/albums from proto/albums.proto (needs protoc an
 	  --go-grpc_out=. --go-grpc_opt=module=homework \
 	  proto/albums.proto
 
+build:         ## build the server and the client into bin/
+	go build -o bin/ ./cmd/albums-server ./cmd/albums-client
+
+server:        ## run the gRPC server on :50051 (plaintext, local development only)
+	go run ./cmd/albums-server
+
+client:        ## run the client, for example: make client ARGS="get 1"
+	go run ./cmd/albums-client $(ARGS)
+
+test:          ## race tests of the own module with a coverage profile (cover.out)
+	go test -race -count=1 -coverprofile=cover.out ./...
+
+smoke:         ## end-to-end smoke check of the own service (builds bin/, server on 127.0.0.1:50061)
+	bash scripts/smoke.sh
+
 demo-test:     ## race tests of the course demo
 	cd libratrack-grpc-demo && go test ./... -race -count=1
 
 demo-smoke:    ## end-to-end smoke check of the course demo
 	cd libratrack-grpc-demo && bash scripts/smoke.sh
 
-.PHONY: help tools proto demo-test demo-smoke
+.PHONY: help tools proto build server client test smoke demo-test demo-smoke

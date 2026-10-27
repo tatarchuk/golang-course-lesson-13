@@ -72,6 +72,11 @@ jobs:
             docs/demo/bidi.txt docs/demo/gateway.txt docs/demo/auth.txt docs/demo/mtls.txt docs/demo/tests.txt
             docs/demo/bench.txt docs/demo/smoke.txt docs/demo/proto-regen.txt
             proto/albums.proto gen/albums/albums.pb.go gen/albums/albums_grpc.pb.go docs/albums/proto-gen.txt
+            cmd/albums-server/main.go cmd/albums-client/main.go scripts/smoke.sh
+            internal/store/store.go internal/store/model.go internal/store/seed.go internal/store/errors.go
+            internal/store/store_test.go internal/server/server.go internal/server/convert.go
+            internal/server/server_test.go internal/middleware/middleware.go internal/middleware/middleware_test.go
+            docs/albums/tests-before.txt docs/albums/tests-after.txt
           )
           missing=""
           for f in "${required[@]}"; do [ -f "$f" ] || missing="$missing $f"; done
@@ -107,8 +112,12 @@ jobs:
           env_not_tracked() { grep -qx '\.env' .gitignore && ! git ls-files --error-unmatch .env 2> /dev/null; }
           check ".env is ignored and not committed" env_not_tracked
 
-          scripts_parse() { local f; for f in libratrack-grpc-demo/scripts/*.sh; do bash -n "$f" || return 1; done; }
+          scripts_parse() { local f; for f in scripts/*.sh libratrack-grpc-demo/scripts/*.sh; do bash -n "$f" || return 1; done; }
           check "Shell scripts parse (bash -n)" scripts_parse
+
+          # Slide 46: handlers return gRPC statuses, never plain error values.
+          status_errors_only() { ! grep -q 'errors\.New(\|fmt\.Errorf(' internal/server/server.go; }
+          check "Server handlers use status errors only" status_errors_only
 
           check "proto: package albums.v1 (versioned package, slide 17)" grep -q '^package albums.v1;' proto/albums.proto
           proto_rpcs() { [ "$(grep -c '^  rpc ' proto/albums.proto)" -eq 3 ]; }
@@ -120,6 +129,34 @@ jobs:
           check "Generated code is current (make proto)" gen_current
 
           exit $FAILED
+
+  test:
+    name: Tests and smoke (own module)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: Tests with the race detector and a coverage profile
+        run: go test -race -count=1 -coverprofile=cover.out ./...
+
+      - name: Coverage summary
+        run: go tool cover -func=cover.out | tail -1
+
+      - name: Smoke (server on 127.0.0.1:50061, the client scenarios)
+        run: bash scripts/smoke.sh
+
+      - name: Keep the coverage profile for the SonarQube Cloud job
+        uses: actions/upload-artifact@v4
+        with:
+          name: cover.out
+          path: cover.out
 
   demo:
     name: Course demo (libratrack-grpc-demo)
